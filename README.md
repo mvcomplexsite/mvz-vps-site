@@ -1,13 +1,13 @@
-# MVZ VPS — готовая загрузка
+# Следующий этап MVZ VPS
 
-1. Открой репозиторий `mvcomplexsite/mvz-vps-site`.
-2. Нажми **Add file → Upload files**.
-3. Перетащи ВСЕ файлы из этой папки, кроме `BOT_PATCH.txt` и `README.md`.
-4. Важно: `index.html` должен лежать в корне, не внутри папки.
-5. Нажми **Commit changes**.
-6. Settings → Pages: Source `Deploy from a branch`, branch `main`, folder `/(root)`, Save.
-7. Подожди 2–5 минут и обнови https://mvcomplexsite.github.io/mvz-vps-site/ через Ctrl+F5.
+## 1. Обнови GitHub Pages
+Загрузи с заменой 3 файла: `index.html`, `style.css`, `app.js`. После Commit подожди 1–3 минуты.
 
-404 означает, что в опубликованном источнике ещё нет `index.html` в корне — это не ошибка кода сайта.
+## 2. Подключи серверную часть
+Открой `WORKER_SITE_SUPPORT_PATCH.txt`. Это патч для ТЕКУЩЕГО Worker бота; его нельзя загружать в GitHub Pages. Вставь три небольших блока в Worker и задеплой.
 
-`BOT_PATCH.txt` не загружать в GitHub. Это инструкция для изменения Worker.
+## Как отвечать
+Пользователь сайта прислал вопрос -> в рабочей Telegram-группе появляется сообщение с `🌐 САЙТ MVZ VPS`. Ответь на него стандартным Telegram **Reply**. Бот сохранит ответ и сайт покажет его пользователю.
+
+## Безопасность
+Никаких токенов или ключей в GitHub. Перед публичным запуском формы добавь Cloudflare Turnstile и WAF/rate limit. Этот патч ограничивает размер текста и использует случайный UUID, но CAPTCHA остаётся следующей обязательной защитой.
