@@ -1,0 +1,1 @@
+const BOT='https://t.me/mvzapretbot';const plans={30:'30',90:'90',360:'360'};document.querySelectorAll('[data-plan]').forEach(b=>b.addEventListener('click',()=>{const plan=plans[b.dataset.plan];window.open(`${BOT}?start=buy_${plan}_site`,'_blank','noopener')}));document.querySelector('#year').textContent=new Date().getFullYear();
