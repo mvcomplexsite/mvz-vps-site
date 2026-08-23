@@ -1,19 +1,13 @@
-# MVZ VPS — GitHub Pages
+# MVZ VPS — готовая загрузка
 
-## Быстрый деплой
-1. Создай на GitHub **новый публичный репозиторий**, например `mvz-vps-site`.
-2. Загрузи в его корень все файлы из этой папки. Если `assets-logo.jpg` не появился, вручную положи туда приложенную картинку с этим именем.
-3. Открой репозиторий: **Settings → Pages → Build and deployment → Deploy from a branch**; выбери `main` и `/ (root)`, затем Save.
-4. Через 1–3 минуты сайт будет доступен по адресу вида `https://<username>.github.io/mvz-vps-site/`.
-5. Перед публикацией проверь в `index.html`: username бота `mvzapretbot`, ссылки на поддержку, тарифы и тексты.
+1. Открой репозиторий `mvcomplexsite/mvz-vps-site`.
+2. Нажми **Add file → Upload files**.
+3. Перетащи ВСЕ файлы из этой папки, кроме `BOT_PATCH.txt` и `README.md`.
+4. Важно: `index.html` должен лежать в корне, не внутри папки.
+5. Нажми **Commit changes**.
+6. Settings → Pages: Source `Deploy from a branch`, branch `main`, folder `/(root)`, Save.
+7. Подожди 2–5 минут и обнови https://mvcomplexsite.github.io/mvz-vps-site/ через Ctrl+F5.
 
-## Свой домен
-В **Settings → Pages → Custom domain** введи, например, `vps.example.ru`. У регистратора создай CNAME: `vps` → `<username>.github.io`. После выпуска сертификата включи **Enforce HTTPS**.
+404 означает, что в опубликованном источнике ещё нет `index.html` в корне — это не ошибка кода сайта.
 
-## Важно о покупке на сайте
-Этот проект безопасно ведёт к покупке в боте. GitHub Pages — статический хостинг: туда нельзя помещать ключ Platega, токен бота, D1-ключи, server UUID либо код проверки webhook. Для прямой оплаты на сайте нужен отдельный Cloudflare Worker API с входом/привязкой аккаунта, server-side созданием заказа и проверкой callback. Не добавляй такую логику в `app.js`.
-
-## Перед запуском
-- Замени страницы `privacy.html` и `terms.html` реальным текстом.
-- Не добавляй API-ключи и любые конфиги в репозиторий.
-- Поменяй цены только одновременно с тарифами в Worker-боте.
+`BOT_PATCH.txt` не загружать в GitHub. Это инструкция для изменения Worker.

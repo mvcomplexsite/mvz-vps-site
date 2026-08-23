@@ -1,0 +1,39 @@
+# ПАТЧ ДЛЯ bottt.txt — вставить ОДИН блок
+
+Найди в функции `async function handleMessage(message, env)` этот фрагмент:
+
+```js
+const payload = parseStartPayload(text)
+const refBind = await tryBindReferral(userId, payload, env)
+```
+
+И ЗАМЕНИ его целиком на этот фрагмент:
+
+```js
+const payload = parseStartPayload(text)
+
+// Переход с официального сайта: отдельный source, без триала и без изменения подписки.
+const sitePlanMap = {
+  site_buy_30: '30',
+  site_buy_90: '90',
+  site_buy_180: '180',
+  site_buy_360: '360'
+}
+const sitePlanCode = sitePlanMap[payload]
+if (sitePlanCode) {
+  await sendBrandedPhotoMessage(
+    chatId,
+    `<b>MVZ VPS</b>
+
+Тариф с сайта: <b>${escapeHtml(sitePlanCode)} дней</b>.
+Выбери оплату — после подтверждения доступ продлится автоматически.`,
+    env,
+    { replyMarkup: buildPaymentKeyboard(), disablePreview: true }
+  )
+  return
+}
+
+const refBind = await tryBindReferral(userId, payload, env)
+```
+
+Важно: это пока только безопасная связка сайт -> бот. Платёж создаётся прежним кодом бота; секреты и Platega на GitHub не попадают. В текущем buildPaymentKeyboard пользователь увидит все тарифы. Если нужно именно автоматически открыть только нужную оплату, надо отдельным маленьким патчем добавить callback/вызов `createPlategaPayment` — не делай это вручную до теста этого этапа.
