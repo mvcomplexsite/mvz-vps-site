@@ -4,7 +4,6 @@
   const cfg = window.MVZ_CONFIG || {};
   const API = String(cfg.API_BASE || '').replace(/\/$/, '');
   const BOT_USERNAME = cfg.BOT_USERNAME || 'mvzapretbot';
-  const DOWNLOAD_URL = cfg.DOWNLOAD_URL || '#';
   const SESSION_KEY = 'mvz_site_session_v1';
   const SUPPORT_SID_KEY = 'mvz_site_support_sid_v1';
 
@@ -141,7 +140,7 @@
       const response = await fetch(`${API}/site-api/status`, { cache:'no-store' });
       const data = await response.json();
       if (!response.ok || !data?.ok) throw new Error('offline');
-      dot.className = 'dot online'; text.textContent = 'Система MVZ работает';
+      dot.className = 'dot online'; text.textContent = 'Система MVZ VPS работает';
     } catch (_) {
       dot.className = 'dot offline'; text.textContent = 'Worker временно недоступен';
     }
@@ -157,7 +156,7 @@
 
   function renderDashboard(data) {
     const account = data.account || {}; const sub = data.subscription || {}; const devices = data.devices || {}; const tg = account.telegram || null;
-    $('welcomeTitle').textContent = account.email || (tg?.username ? `@${tg.username}` : 'MVZ аккаунт');
+    $('welcomeTitle').textContent = account.email || (tg?.username ? `@${tg.username}` : 'Аккаунт MVZ VPS');
     $('accountSubtitle').textContent = account.email && tg?.username ? `${account.email} • @${tg.username}` : (account.email || (tg ? `Telegram ${tg.id}` : 'Web-аккаунт'));
 
     const active = !!sub.active;
@@ -170,11 +169,11 @@
 
     if (tg?.id) {
       $('telegramState').textContent = tg.username ? `@${tg.username}` : `Telegram ${tg.id}`;
-      $('telegramDescription').textContent = 'Telegram связан с этим же MVZ-аккаунтом. Срок, покупки и устройства общие.';
+      $('telegramDescription').textContent = 'Telegram связан с этим же аккаунтом MVZ VPS. Срок, покупки и устройства общие.';
       $('telegramLinkButton').classList.add('hidden'); $('telegramUnlinkedHint').classList.remove('hidden'); $('summaryTelegram').textContent = tg.username ? `@${tg.username}` : 'Подключён';
     } else {
       $('telegramState').textContent = 'Не подключён';
-      $('telegramDescription').textContent = 'Можно привязать Telegram позже. Если там уже есть профиль MVZ, сервер объединит данные и не создаст второй оплаченный аккаунт.';
+      $('telegramDescription').textContent = 'Можно привязать Telegram позже. Если там уже есть профиль MVZ VPS, сервер объединит данные и не создаст второй оплаченный аккаунт.';
       $('telegramLinkButton').classList.remove('hidden'); $('telegramUnlinkedHint').classList.add('hidden'); $('summaryTelegram').textContent = 'Не подключён';
       renderTelegramWidget('link');
     }
@@ -192,7 +191,7 @@
   function renderDevices(items) {
     const root = $('devicesList');
     if (!items.length) {
-      root.innerHTML = '<div class="empty-state">Пока устройств нет. После покупки добавь подписочную ссылку в VPN-клиент и обнови подписку — устройство появится автоматически.</div>'; return;
+      root.innerHTML = '<div class="empty-state">Пока устройств нет. После покупки добавь подписочную ссылку в совместимый клиент и обнови подписку — устройство появится автоматически.</div>'; return;
     }
     root.innerHTML = items.map((device) => {
       const active = device.status === 'active';
@@ -296,8 +295,7 @@
   $('supportForm').addEventListener('submit', async (event) => { event.preventDefault(); const input=$('supportInput'); const text=input.value.trim(); if (!text) return; const sid=getSupportSid(); const source=state.me?.account?.id ? `website-account:${state.me.account.id}` : 'website-guest'; const submit=event.submitter; if (submit) submit.disabled=true; try { const res=await fetch(`${API}/site-api/support/message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ sid,text,origin:source }) }); const data=await res.json(); if (!res.ok || !data.ok) throw new Error(data.error||'support_failed'); input.value=''; await loadSupportMessages(); showToast('Сообщение отправлено в поддержку'); } catch (_) { showToast('Не удалось отправить сообщение в поддержку.',5000); } finally { if (submit) submit.disabled=false; } });
 
   const guide = $('guideDialog');
-  $('openGuideBtn').addEventListener('click', () => guide.showModal()); $('closeGuideBtn').addEventListener('click', () => guide.close()); $('guideSupportBtn').addEventListener('click', () => { guide.close(); openSupport(); });
-  $('downloadWindowsBtn').href = DOWNLOAD_URL; $('dashboardDownloadBtn').href = DOWNLOAD_URL;
+  $('openGuideBtn').addEventListener('click', () => guide.showModal()); $('dashboardGuideBtn')?.addEventListener('click', () => guide.showModal()); $('closeGuideBtn').addEventListener('click', () => guide.close()); $('guideSupportBtn').addEventListener('click', () => { guide.close(); openSupport(); }); $('supportConnectBtn')?.addEventListener('click', openSupport);
   $('menuButton').addEventListener('click', () => document.querySelector('.nav-links').classList.toggle('open'));
   document.querySelectorAll('.nav-links a').forEach((a) => a.addEventListener('click', () => document.querySelector('.nav-links').classList.remove('open')));
 
