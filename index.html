@@ -1,1 +1,149 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MVZ VPS — стабильное подключение</title><meta name="description" content="MVZ VPS: подключение для Telegram, сайтов и приложений"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Unbounded:wght@500;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"></head><body><header><a class="brand" href="#top"><span class="logo">MV</span><span>MVZ <b>VPS</b></span></a><nav><a href="#plans">Тарифы</a><a href="#how">Как начать</a><button class="navsupport" data-open-chat>Поддержка</button></nav><a class="open" href="https://t.me/mvzapretbot?start=site" target="_blank" rel="noopener noreferrer">Открыть Telegram</a></header><main id="top"><section class="hero"><div><p class="tag">MVZ VPS / БЫСТРЫЙ СТАРТ</p><h1>Стабильное<br><em>VPS-подключение</em></h1><p class="lead">Для Telegram, сайтов, видео и приложений. До 3 устройств на одной подписке, подключение через официальный бот.</p><div class="hero-actions"><a class="button" href="#plans">Выбрать тариф</a><button class="link chatlink" data-open-chat>Нужна помощь? Написать ↗</button></div><div class="facts"><span><b>3</b> устройства</span><span><b>24/7</b> доступ</span><span><b>VLESS</b> протокол</span></div></div><div class="visual"><span class="logo big">MV</span><strong>MVZ VPS</strong><small><i></i> Система работает</small></div></section><section class="band">TELEGRAM <span>•</span> YOUTUBE <span>•</span> DISCORD <span>•</span> ИГРЫ <span>•</span> САЙТЫ</section><section id="plans"><p class="tag">ПОНЯТНЫЕ УСЛОВИЯ</p><h2>Выбери срок подписки</h2><p class="sub">Оплата и выдача подключения происходят в официальном Telegram-боте.</p><div class="plans"><article><h3>На месяц</h3><p class="price">70 <small>₽ / 30 дней</small></p><ul><li>До 3 устройств</li><li>Все доступные локации</li><li>Поддержка в Telegram и на сайте</li></ul><button data-plan="30">Подключить</button></article><article class="chosen"><label>ВЫГОДНО</label><h3>На 3 месяца</h3><p class="price">190 <small>₽ / 90 дней</small></p><ul><li>До 3 устройств</li><li>Все доступные локации</li><li>Оплата в боте</li></ul><button data-plan="90">Подключить</button></article><article><h3>На год</h3><p class="price">600 <small>₽ / 360 дней</small></p><ul><li>До 3 устройств</li><li>Все доступные локации</li><li>Максимальный срок</li></ul><button data-plan="360">Подключить</button></article></div></section><section id="how" class="how"><p class="tag">ТРИ ШАГА</p><h2>Как начать</h2><div><article><b>1</b><h3>Открой бота</h3><p>Запусти официальный MVZ VPS в Telegram.</p></article><article><b>2</b><h3>Выбери тариф</h3><p>Оплати удобный срок защищённой формой.</p></article><article><b>3</b><h3>Подключись</h3><p>Импортируй конфигурацию в приложение.</p></article></div></section></main><footer><span class="brand"><span class="logo">MV</span><span>MVZ <b>VPS</b></span></span><span>© <span id="year"></span> MVZ VPS</span><button class="foot-support" data-open-chat>Поддержка</button></footer><button class="chat-fab" data-open-chat aria-label="Открыть поддержку"><span>✦</span> Поддержка</button><section class="chat" id="chat" aria-hidden="true"><div class="chat-head"><div><b>Поддержка MVZ VPS</b><small><i></i> Обычно отвечаем быстро</small></div><button id="close-chat" aria-label="Закрыть">×</button></div><div class="chat-notice">Сообщение уходит в рабочий Telegram-чат поддержки, а ответ придёт сюда.</div><div class="chat-messages" id="chat-messages"><div class="msg bot">Привет! Опиши проблему, укажи устройство или приложение, и мы ответим прямо здесь.</div></div><form id="chat-form"><textarea id="chat-input" maxlength="1500" placeholder="Введите сообщение…" required></textarea><button id="send-chat" type="submit">Отправить</button></form><p class="chat-status" id="chat-status"></p></section><script src="app.js" defer></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#171126">
+  <meta name="description" content="MVZ — личный кабинет, покупка и управление подпиской без обязательного Telegram.">
+  <title>MVZ — личный кабинет</title>
+  <link rel="icon" href="assets/mvz-logo.jpg">
+  <link rel="preconnect" href="https://telegram.org">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+
+  <header class="topbar shell">
+    <a class="brand" href="#" aria-label="MVZ">
+      <img src="assets/mvz-logo.jpg" alt="Логотип MVZ">
+      <span><strong>MVZ</strong><small>PRIVATE NETWORK</small></span>
+    </a>
+    <nav>
+      <button class="ghost" id="supportTopBtn" type="button">Поддержка</button>
+      <button class="ghost hidden" id="logoutBtn" type="button">Выйти</button>
+    </nav>
+  </header>
+
+  <main class="shell page">
+    <section id="landingView" class="landing-grid">
+      <div class="hero-copy">
+        <div class="eyebrow">Доступ даже когда Telegram недоступен</div>
+        <h1>Купи MVZ на сайте и получи ссылку <span>сразу после оплаты.</span></h1>
+        <p>Telegram не обязателен. Создай аккаунт на сайте, оплати подписку и управляй устройствами в личном кабинете. Telegram можно привязать позже — к той же подписке.</p>
+        <div class="hero-pills">
+          <span>Без обязательного Telegram</span>
+          <span>До 3 устройств базово</span>
+          <span>Автопродление срока после оплаты</span>
+        </div>
+      </div>
+
+      <section class="auth-card glass" aria-label="Вход в MVZ">
+        <div class="auth-tabs" role="tablist">
+          <button class="auth-tab active" data-tab="login" type="button">Вход</button>
+          <button class="auth-tab" data-tab="register" type="button">Регистрация</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <label>Email<input id="loginEmail" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+          <label>Пароль<input id="loginPassword" type="password" autocomplete="current-password" minlength="8" required></label>
+          <button class="primary wide" type="submit">Войти в кабинет</button>
+        </form>
+
+        <form id="registerForm" class="auth-form hidden">
+          <label>Email<input id="registerEmail" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+          <label>Пароль<input id="registerPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+          <label>Повтори пароль<input id="registerPassword2" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+          <button class="primary wide" type="submit">Создать аккаунт</button>
+          <p class="fine">Регистрация на сайте не выдаёт пробный период. Бесплатные дни остаются отдельной механикой Telegram-бота.</p>
+        </form>
+
+        <div class="divider"><span>или</span></div>
+        <div class="telegram-login-wrap">
+          <p>Если Telegram доступен, можно войти сразу через него.</p>
+          <div id="telegramLoginButton" class="telegram-widget-slot"></div>
+        </div>
+        <p id="authError" class="form-error" role="alert"></p>
+      </section>
+    </section>
+
+    <section id="dashboardView" class="dashboard hidden">
+      <div class="dashboard-head">
+        <div>
+          <div class="eyebrow">Личный кабинет</div>
+          <h2 id="welcomeTitle">MVZ</h2>
+          <p id="accountSubtitle" class="muted"></p>
+        </div>
+        <button id="refreshDashboardBtn" class="ghost" type="button">Обновить</button>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="glass card subscription-card span-2">
+          <div class="card-head">
+            <div>
+              <span class="card-kicker">Подписка</span>
+              <h3 id="subscriptionStatus">Проверяем…</h3>
+            </div>
+            <span id="subscriptionBadge" class="status-pill">—</span>
+          </div>
+          <p id="subscriptionEnds" class="muted"></p>
+          <div id="subscriptionActions" class="action-row hidden">
+            <button id="copySubscriptionBtn" class="primary" type="button">Скопировать ссылку</button>
+            <a id="openV2RayBtn" class="secondary button-link" href="#">Открыть в V2RayTun</a>
+            <button id="rotateSubscriptionBtn" class="ghost" type="button">Обновить ссылку</button>
+          </div>
+          <div id="subscriptionLinkBox" class="link-box hidden"><code id="subscriptionLink"></code></div>
+        </article>
+
+        <article class="glass card telegram-card">
+          <div class="card-head compact">
+            <div><span class="card-kicker">Telegram</span><h3 id="telegramState">Не подключён</h3></div>
+          </div>
+          <p id="telegramDescription" class="muted">Можно привязать Telegram позже. Подписка останется той же.</p>
+          <div id="telegramLinkButton" class="telegram-widget-slot"></div>
+          <button id="telegramUnlinkedHint" class="secondary wide hidden" type="button" disabled>Telegram уже подключён</button>
+        </article>
+
+        <article class="glass card devices-card span-2">
+          <div class="card-head">
+            <div><span class="card-kicker">Устройства</span><h3>Мои устройства</h3></div>
+            <span id="deviceCount" class="status-pill">0 / 3</span>
+          </div>
+          <p class="muted">Устройства появляются автоматически после добавления или обновления общей ссылки подписки в клиенте.</p>
+          <div id="devicesList" class="devices-list"></div>
+        </article>
+
+        <article class="glass card plans-card span-2">
+          <div class="card-head">
+            <div><span class="card-kicker">Оплата</span><h3>Выбери срок</h3></div>
+            <span class="status-pill soft">Platega</span>
+          </div>
+          <div id="plansGrid" class="plans-grid"></div>
+          <p class="fine">После подтверждения платежа срок будет начислен автоматически. Для покупки через сайт Telegram не нужен.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <aside id="supportDrawer" class="support-drawer" aria-hidden="true">
+    <div class="support-panel">
+      <div class="support-head">
+        <div><span class="card-kicker">MVZ Support</span><h3>Техподдержка</h3></div>
+        <button id="closeSupportBtn" class="icon-btn" aria-label="Закрыть" type="button">×</button>
+      </div>
+      <div id="supportMessages" class="support-messages"></div>
+      <form id="supportForm" class="support-form">
+        <textarea id="supportInput" rows="3" maxlength="1500" placeholder="Опиши проблему…" required></textarea>
+        <button class="primary" type="submit">Отправить</button>
+      </form>
+      <p class="fine">Ответ оператора из рабочей Telegram-группы появится здесь.</p>
+    </div>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
