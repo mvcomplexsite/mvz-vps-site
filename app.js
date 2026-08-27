@@ -27,6 +27,7 @@
     supportTimer: null,
     supportLoading: false,
     supportSeen: new Set(),
+    supportRecentBodies: new Map(),
     supportPendingId: '',
     supportPendingText: '',
     paymentTimer: null,
@@ -336,9 +337,29 @@
       storageSet(SUPPORT_SID_KEY, sid);
       state.supportSince = 0;
       state.supportSeen.clear();
+      state.supportRecentBodies.clear();
     }
     storageSet(SUPPORT_LAST_ACTIVE_KEY, String(Date.now()));
     return sid;
+  }
+
+  function supportMessageTs(value) {
+    const raw = String(value || '').trim();
+    if (!raw) return 0;
+    const normalized = raw.includes('T') ? raw : raw.replace(' ', 'T') + 'Z';
+    const ts = Date.parse(normalized);
+    return Number.isFinite(ts) ? ts : 0;
+  }
+
+  function isLegacySupportDuplicate(message) {
+    const author = String(message?.author || '');
+    const text = String(message?.text || '').trim();
+    const key = `${author}\u0000${text}`;
+    const ts = supportMessageTs(message?.created_at);
+    const previousTs = Number(state.supportRecentBodies.get(key) || 0);
+    if (previousTs && ts && Math.abs(ts - previousTs) <= 15000) return true;
+    if (ts) state.supportRecentBodies.set(key, ts);
+    return false;
   }
 
   async function loadSupportMessages() {
@@ -346,6 +367,7 @@
     state.supportLoading = true;
     try {
       const sid = getSupportSid();
+      const initialLoad = state.supportSince === 0;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 12000);
       let response;
@@ -355,13 +377,26 @@
       const data = await response.json();
       if (!response.ok || !data?.ok || !Array.isArray(data.messages)) return;
       const root = $('supportMessages');
-      if (state.supportSince === 0) { root.replaceChildren(); state.supportSeen.clear(); }
+      if (initialLoad) {
+        root.replaceChildren();
+        state.supportSeen.clear();
+        state.supportRecentBodies.clear();
+      }
+      // Worker присылает курсор по сырым строкам. Даже если старый дубль скрыт,
+      // следующий poll уже не запросит его повторно.
+      state.supportSince = Math.max(state.supportSince, Number(data.lastId || 0));
       const fragment = document.createDocumentFragment();
       for (const message of data.messages) {
         const id = Number(message.id || 0);
-        if (!id || state.supportSeen.has(id)) continue;
-        state.supportSeen.add(id);
+        if (!id) continue;
+
+        // Важно двигать since даже для скрытого legacy-дубля, иначе следующий poll
+        // будет снова и снова получать ту же запись.
         state.supportSince = Math.max(state.supportSince, id);
+        if (state.supportSeen.has(id)) continue;
+        state.supportSeen.add(id);
+        if (isLegacySupportDuplicate(message)) continue;
+
         const div = document.createElement('div'); div.className = `bubble ${message.author === 'support' ? 'support' : 'user'}`;
         div.dataset.messageId = String(id);
         div.innerHTML = `${escapeHtml(message.text)}<small>${escapeHtml(formatDate(message.created_at, true))}</small>`;
@@ -380,7 +415,7 @@
   function openSupport() {
     const drawer = $('supportDrawer');
     drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false');
-    state.supportSince = 0; state.supportSeen.clear(); $('supportMessages').replaceChildren();
+    state.supportSince = 0; state.supportSeen.clear(); state.supportRecentBodies.clear(); $('supportMessages').replaceChildren();
     loadSupportMessages();
     clearInterval(state.supportTimer);
     state.supportTimer = setInterval(loadSupportMessages, Math.max(4500, Number(cfg.SUPPORT_POLL_MS || 5000)));
@@ -444,7 +479,22 @@
   const guide = $('guideDialog');
   $('openGuideBtn').addEventListener('click', () => guide.showModal()); $('dashboardGuideBtn')?.addEventListener('click', () => guide.showModal()); $('closeGuideBtn').addEventListener('click', () => guide.close()); $('guideSupportBtn').addEventListener('click', () => { guide.close(); openSupport(); }); $('supportConnectBtn')?.addEventListener('click', openSupport);
   $('menuButton').addEventListener('click', () => document.querySelector('.nav-links').classList.toggle('open'));
-  document.querySelectorAll('.nav-links a').forEach((a) => a.addEventListener('click', () => document.querySelector('.nav-links').classList.remove('open')));
+  document.querySelectorAll('.nav-links a[href^="#"]').forEach((a) => a.addEventListener('click', (event) => {
+    document.querySelector('.nav-links').classList.remove('open');
+    if (!state.session || dashboardView.classList.contains('hidden')) return;
+
+    const hash = a.getAttribute('href');
+    if (hash === '#plans') {
+      event.preventDefault();
+      const target = $('plansGrid')?.closest('.plans-card') || $('plansGrid');
+      target?.scrollIntoView({ behavior:'smooth', block:'center' });
+      return;
+    }
+    if (hash === '#how' || hash === '#download') {
+      event.preventDefault();
+      if (typeof guide.showModal === 'function') guide.showModal();
+    }
+  }));
 
   if (state.session) {
     loadDashboard();
