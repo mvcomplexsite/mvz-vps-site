@@ -6,15 +6,34 @@
   const BOT_USERNAME = cfg.BOT_USERNAME || 'mvzapretbot';
   const SESSION_KEY = 'mvz_site_session_v1';
   const SUPPORT_SID_KEY = 'mvz_site_support_sid_v1';
+  const SUPPORT_LAST_ACTIVE_KEY = 'mvz_site_support_last_active_v1';
+  const SUPPORT_HISTORY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+  function storageGet(key) {
+    try { return localStorage.getItem(key) || sessionStorage.getItem(key) || ''; } catch (_) {
+      try { return sessionStorage.getItem(key) || ''; } catch (_) { return ''; }
+    }
+  }
+
+  function storageSet(key, value) {
+    try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (_) {}
+    try { if (value) sessionStorage.setItem(key, value); else sessionStorage.removeItem(key); } catch (_) {}
+  }
 
   const state = {
-    session: localStorage.getItem(SESSION_KEY) || '',
+    session: storageGet(SESSION_KEY),
     me: null,
-    telegramMode: 'login',
     supportSince: 0,
     supportTimer: null,
+    supportLoading: false,
+    supportSeen: new Set(),
+    supportPendingId: '',
+    supportPendingText: '',
     paymentTimer: null,
-    selectedPlan: null
+    paymentCreating: false,
+    selectedPlan: null,
+    dashboardLoading: false,
+    telegramRenderSeq: 0
   };
 
   const $ = (id) => document.getElementById(id);
@@ -57,15 +76,23 @@
   }
 
   async function api(path, options = {}) {
-    const headers = new Headers(options.headers || {});
-    if (!headers.has('Content-Type') && options.body) headers.set('Content-Type', 'application/json');
+    const { timeoutMs = 18000, ...fetchOptions } = options;
+    const headers = new Headers(fetchOptions.headers || {});
+    if (!headers.has('Content-Type') && fetchOptions.body) headers.set('Content-Type', 'application/json');
     if (state.session) headers.set('Authorization', `Bearer ${state.session}`);
-    const response = await fetch(`${API}${path}`, { ...options, headers });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(3000, Number(timeoutMs) || 18000));
+    let response;
+    try {
+      response = await fetch(`${API}${path}`, { ...fetchOptions, headers, signal: fetchOptions.signal || controller.signal });
+    } catch (cause) {
+      const code = cause?.name === 'AbortError' ? 'request_timeout' : 'network_error';
+      throw Object.assign(new Error(code), { code, cause });
+    } finally {
+      clearTimeout(timer);
+    }
     let data = null;
     try { data = await response.json(); } catch (_) {}
-    if (response.status === 401 && state.session && path !== '/site-api/account/credentials') {
-      localStorage.removeItem(SESSION_KEY); state.session = ''; state.me = null; showLoggedOut();
-    }
     if (!response.ok) {
       const code = data?.error || `http_${response.status}`;
       const error = Object.assign(new Error(data?.message || code), { code, status: response.status, data });
@@ -76,12 +103,12 @@
 
   function saveSession(token) {
     state.session = token || '';
-    if (state.session) localStorage.setItem(SESSION_KEY, state.session); else localStorage.removeItem(SESSION_KEY);
+    storageSet(SESSION_KEY, state.session);
   }
 
   function showLoggedOut() {
     landingView.classList.remove('hidden'); dashboardView.classList.add('hidden'); logoutBtn.classList.add('hidden'); state.me = null;
-    renderTelegramWidget('login');
+    setupLazyTelegramLogin();
   }
 
   function showLoggedIn() {
@@ -89,10 +116,10 @@
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
-  function renderTelegramWidget(mode) {
-    state.telegramMode = mode;
+  function renderTelegramWidget(mode, attempt = 0) {
     const target = mode === 'link' ? $('telegramLinkButton') : $('telegramLoginButton');
     if (!target || target.classList.contains('hidden')) return;
+    const seq = ++state.telegramRenderSeq;
     target.replaceChildren();
     const script = document.createElement('script');
     script.async = true;
@@ -101,27 +128,57 @@
     script.setAttribute('data-size', 'large');
     script.setAttribute('data-radius', '12');
     script.setAttribute('data-userpic', 'false');
-    script.setAttribute('data-request-access', 'write');
-    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-onauth', mode === 'link' ? 'onTelegramAuthLink(user)' : 'onTelegramAuthLogin(user)');
     target.appendChild(script);
+
+    if (mode === 'link' && attempt < 2) {
+      setTimeout(() => {
+        if (seq !== state.telegramRenderSeq || target.classList.contains('hidden')) return;
+        if (!target.querySelector('iframe')) renderTelegramWidget(mode, attempt + 1);
+      }, 900 + attempt * 900);
+    }
   }
 
-  window.onTelegramAuth = async (telegramUser) => {
+  let telegramLoginObserver = null;
+  function setupLazyTelegramLogin() {
+    const target = $('telegramLoginButton');
+    if (!target || target.dataset.widgetReady === '1') return;
+    const load = () => {
+      if (target.dataset.widgetReady === '1' || state.session) return;
+      target.dataset.widgetReady = '1';
+      renderTelegramWidget('login');
+    };
+    if ('IntersectionObserver' in window) {
+      telegramLoginObserver?.disconnect();
+      telegramLoginObserver = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) { telegramLoginObserver.disconnect(); load(); }
+      }, { rootMargin: '250px' });
+      telegramLoginObserver.observe($('auth'));
+    } else {
+      setTimeout(load, 800);
+    }
+  }
+
+  async function handleTelegramAuth(telegramUser, mode) {
     try {
       setAuthError('');
-      if (state.telegramMode === 'link' && state.session) {
-        const data = await api('/site-api/account/link-telegram', { method:'POST', body:JSON.stringify({ telegram: telegramUser }) });
+      showToast(mode === 'link' ? 'Подключаем Telegram…' : 'Входим через Telegram…', 6000);
+      if (mode === 'link' && state.session) {
+        const data = await api('/site-api/account/link-telegram', { method:'POST', body:JSON.stringify({ telegram: telegramUser }), timeoutMs: 20000 });
         showToast(data?.merged ? 'Telegram подключён — данные объединены' : 'Telegram подключён');
         await loadDashboard();
       } else {
-        const data = await api('/site-api/auth/telegram', { method:'POST', body:JSON.stringify({ telegram: telegramUser }) });
+        const data = await api('/site-api/auth/telegram', { method:'POST', body:JSON.stringify({ telegram: telegramUser }), timeoutMs: 20000 });
         saveSession(data.session); await loadDashboard(); showToast('Вход через Telegram выполнен');
       }
     } catch (error) {
       const msg = humanError(error);
-      if (state.telegramMode === 'login') setAuthError(msg); else showToast(msg, 5200);
+      if (mode === 'login') setAuthError(msg); else showToast(msg, 5200);
     }
-  };
+  }
+
+  window.onTelegramAuthLogin = (telegramUser) => handleTelegramAuth(telegramUser, 'login');
+  window.onTelegramAuthLink = (telegramUser) => handleTelegramAuth(telegramUser, 'link');
 
   function humanError(error) {
     const map = {
@@ -129,7 +186,8 @@
       bad_credentials:'Неверный email или пароль.', invalid_telegram_auth:'Не удалось подтвердить вход через Telegram.', telegram_auth_expired:'Авторизация Telegram устарела. Попробуй ещё раз.',
       payment_create_failed:'Не удалось создать оплату. Попробуй позже.', session_required:'Нужно войти в аккаунт.', users_telegram_id_not_nullable:'В базе нужно разрешить web-пользователей без Telegram.',
       merge_failed:'Не удалось безопасно объединить аккаунты. Напиши в поддержку — данные не удалены.', current_password_required:'Для изменения существующего пароля нужен текущий пароль.',
-      bad_current_password:'Текущий пароль неверный.', subscription_inactive:'Сначала активируй подписку.', device_limit:'Достигнут лимит устройств.'
+      bad_current_password:'Текущий пароль неверный.', subscription_inactive:'Сначала активируй подписку.', device_limit:'Достигнут лимит устройств.',
+      network_error:'Нет связи с сервером. Сессия сохранена — попробуй ещё раз.', request_timeout:'Сервер отвечает дольше обычного. Сессия сохранена — повтори попытку.'
     };
     return error?.data?.message || map[error?.code] || error?.message || 'Произошла ошибка.';
   }
@@ -148,10 +206,33 @@
 
   async function loadDashboard() {
     if (!state.session) return showLoggedOut();
+    if (state.dashboardLoading) return;
+    state.dashboardLoading = true;
+    let lastError = null;
     try {
-      const data = await api('/site-api/me');
-      state.me = data; showLoggedIn(); renderDashboard(data); await handlePaymentReturn();
-    } catch (error) { if (error.status !== 401) showToast(humanError(error), 5000); }
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const data = await api('/site-api/me', { timeoutMs: 15000 });
+          state.me = data; showLoggedIn(); renderDashboard(data); await handlePaymentReturn();
+          return;
+        } catch (error) {
+          lastError = error;
+          const retryable = error?.status === 401 || error?.code === 'network_error' || error?.code === 'request_timeout' || Number(error?.status || 0) >= 500;
+          if (!retryable || attempt >= 2) break;
+          await new Promise((resolve) => setTimeout(resolve, 450 + attempt * 650));
+        }
+      }
+
+      if (lastError?.status === 401) {
+        saveSession('');
+        showLoggedOut();
+        setAuthError('Сессия закончилась. Войди снова.');
+      } else if (lastError) {
+        showToast(humanError(lastError), 6000);
+      }
+    } finally {
+      state.dashboardLoading = false;
+    }
   }
 
   function renderDashboard(data) {
@@ -175,7 +256,7 @@
       $('telegramState').textContent = 'Не подключён';
       $('telegramDescription').textContent = 'Можно привязать Telegram позже. Если там уже есть профиль MVZ VPS, сервер объединит данные и не создаст второй оплаченный аккаунт.';
       $('telegramLinkButton').classList.remove('hidden'); $('telegramUnlinkedHint').classList.add('hidden'); $('summaryTelegram').textContent = 'Не подключён';
-      renderTelegramWidget('link');
+      requestAnimationFrame(() => renderTelegramWidget('link'));
     }
 
     $('deviceCount').textContent = `${devices.used || 0} / ${devices.limit || 3}`; $('summaryDevices').textContent = `${devices.used || 0} / ${devices.limit || 3}`;
@@ -205,12 +286,24 @@
   }
 
   async function startPayment(planCode) {
+    if (state.paymentCreating) return;
+    state.paymentCreating = true;
+    const buttons = [...document.querySelectorAll('[data-plan-code], [data-public-plan]')];
+    buttons.forEach((button) => { button.disabled = true; });
+    const selected = document.querySelector(`[data-plan-code="${CSS.escape(planCode)}"]`);
+    const oldText = selected?.textContent || '';
+    if (selected) selected.textContent = 'Создаём оплату…';
+    showToast('Подготавливаем страницу оплаты…', 8000);
     try {
-      const button = document.querySelector(`[data-plan-code="${CSS.escape(planCode)}"]`);
-      if (button) { button.disabled = true; button.textContent = 'Создаём оплату…'; }
-      const data = await api('/site-api/payment/create', { method:'POST', body:JSON.stringify({ planCode }) });
-      sessionStorage.setItem('mvz_pending_tx', data.transactionId || ''); window.location.href = data.paymentUrl;
-    } catch (error) { showToast(humanError(error), 5200); if (state.me) renderDashboard(state.me); }
+      const data = await api('/site-api/payment/create', { method:'POST', body:JSON.stringify({ planCode }), timeoutMs: 25000 });
+      sessionStorage.setItem('mvz_pending_tx', data.transactionId || '');
+      window.location.assign(data.paymentUrl);
+    } catch (error) {
+      showToast(humanError(error), 6000);
+      if (selected && oldText) selected.textContent = oldText;
+      buttons.forEach((button) => { button.disabled = false; });
+      state.paymentCreating = false;
+    }
   }
 
   async function handlePaymentReturn() {
@@ -235,33 +328,64 @@
   }
 
   function getSupportSid() {
-    let sid = localStorage.getItem(SUPPORT_SID_KEY);
-    if (!sid || !/^[a-f0-9-]{30,64}$/i.test(sid)) { sid = crypto.randomUUID(); localStorage.setItem(SUPPORT_SID_KEY, sid); }
+    let sid = storageGet(SUPPORT_SID_KEY);
+    const lastActive = Number(storageGet(SUPPORT_LAST_ACTIVE_KEY) || 0);
+    if (lastActive && Date.now() - lastActive > SUPPORT_HISTORY_TTL_MS) sid = '';
+    if (!sid || !/^[a-f0-9-]{30,64}$/i.test(sid)) {
+      sid = crypto.randomUUID();
+      storageSet(SUPPORT_SID_KEY, sid);
+      state.supportSince = 0;
+      state.supportSeen.clear();
+    }
+    storageSet(SUPPORT_LAST_ACTIVE_KEY, String(Date.now()));
     return sid;
   }
 
   async function loadSupportMessages() {
+    if (state.supportLoading) return;
+    state.supportLoading = true;
     try {
       const sid = getSupportSid();
-      const data = await fetch(`${API}/site-api/support/messages?sid=${encodeURIComponent(sid)}&since=${state.supportSince}`, { cache:'no-store' }).then(r => r.json());
-      if (!data?.ok || !Array.isArray(data.messages)) return;
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      let response;
+      try {
+        response = await fetch(`${API}/site-api/support/messages?sid=${encodeURIComponent(sid)}&since=${state.supportSince}`, { cache:'no-store', signal:controller.signal });
+      } finally { clearTimeout(timer); }
+      const data = await response.json();
+      if (!response.ok || !data?.ok || !Array.isArray(data.messages)) return;
       const root = $('supportMessages');
-      if (state.supportSince === 0) root.replaceChildren();
+      if (state.supportSince === 0) { root.replaceChildren(); state.supportSeen.clear(); }
+      const fragment = document.createDocumentFragment();
       for (const message of data.messages) {
-        state.supportSince = Math.max(state.supportSince, Number(message.id || 0));
+        const id = Number(message.id || 0);
+        if (!id || state.supportSeen.has(id)) continue;
+        state.supportSeen.add(id);
+        state.supportSince = Math.max(state.supportSince, id);
         const div = document.createElement('div'); div.className = `bubble ${message.author === 'support' ? 'support' : 'user'}`;
-        div.innerHTML = `${escapeHtml(message.text)}<small>${escapeHtml(formatDate(message.created_at, true))}</small>`; root.appendChild(div);
+        div.dataset.messageId = String(id);
+        div.innerHTML = `${escapeHtml(message.text)}<small>${escapeHtml(formatDate(message.created_at, true))}</small>`;
+        fragment.appendChild(div);
       }
-      if (!root.children.length) root.innerHTML = '<div class="support-welcome">Опиши проблему. Можно писать даже без входа в аккаунт.</div>';
+      root.appendChild(fragment);
+      if (!root.children.length) root.innerHTML = '<div class="support-welcome">Опиши проблему. История хранится до 30 дней, показываем последние сообщения.</div>';
       if (data.messages.length) root.scrollTop = root.scrollHeight;
-    } catch (_) {}
+    } catch (_) {
+      // Поддержка не должна тормозить остальной сайт при временной проблеме сети.
+    } finally {
+      state.supportLoading = false;
+    }
   }
 
   function openSupport() {
-    const drawer = $('supportDrawer'); drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false'); state.supportSince = 0; $('supportMessages').replaceChildren();
-    loadSupportMessages(); clearInterval(state.supportTimer); state.supportTimer = setInterval(loadSupportMessages, Number(cfg.SUPPORT_POLL_MS || 3500));
+    const drawer = $('supportDrawer');
+    drawer.classList.add('open'); drawer.setAttribute('aria-hidden', 'false');
+    state.supportSince = 0; state.supportSeen.clear(); $('supportMessages').replaceChildren();
+    loadSupportMessages();
+    clearInterval(state.supportTimer);
+    state.supportTimer = setInterval(loadSupportMessages, Math.max(4500, Number(cfg.SUPPORT_POLL_MS || 5000)));
   }
-  function closeSupport() { $('supportDrawer').classList.remove('open'); $('supportDrawer').setAttribute('aria-hidden','true'); clearInterval(state.supportTimer); }
+  function closeSupport() { $('supportDrawer').classList.remove('open'); $('supportDrawer').setAttribute('aria-hidden','true'); clearInterval(state.supportTimer); state.supportTimer = null; }
 
   function openAuthForPlan(planCode) {
     state.selectedPlan = planCode;
@@ -292,13 +416,40 @@
 
   ['supportTopBtn','supportDashboardBtn','supportFooterBtn'].forEach((id) => $(id)?.addEventListener('click', openSupport));
   $('closeSupportBtn').addEventListener('click', closeSupport); $('supportDrawer').addEventListener('click', (event) => { if (event.target === $('supportDrawer')) closeSupport(); });
-  $('supportForm').addEventListener('submit', async (event) => { event.preventDefault(); const input=$('supportInput'); const text=input.value.trim(); if (!text) return; const sid=getSupportSid(); const source=state.me?.account?.id ? `website-account:${state.me.account.id}` : 'website-guest'; const submit=event.submitter; if (submit) submit.disabled=true; try { const res=await fetch(`${API}/site-api/support/message`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ sid,text,origin:source }) }); const data=await res.json(); if (!res.ok || !data.ok) throw new Error(data.error||'support_failed'); input.value=''; await loadSupportMessages(); showToast('Сообщение отправлено в поддержку'); } catch (_) { showToast('Не удалось отправить сообщение в поддержку.',5000); } finally { if (submit) submit.disabled=false; } });
+  $('supportForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = $('supportInput'); const text = input.value.trim(); if (!text) return;
+    const sid = getSupportSid();
+    const source = state.me?.account?.id ? `website-account:${state.me.account.id}` : 'website-guest';
+    const submit = event.submitter; if (submit) submit.disabled = true;
+    if (!state.supportPendingId || state.supportPendingText !== text) {
+      state.supportPendingId = crypto.randomUUID(); state.supportPendingText = text;
+    }
+    try {
+      const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 15000);
+      let res;
+      try {
+        res = await fetch(`${API}/site-api/support/message`, { method:'POST', headers:{'Content-Type':'application/json'}, signal:controller.signal, body:JSON.stringify({ sid, text, origin:source, clientMessageId:state.supportPendingId }) });
+      } finally { clearTimeout(timer); }
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || 'support_failed');
+      input.value = ''; state.supportPendingId = ''; state.supportPendingText = ''; storageSet(SUPPORT_LAST_ACTIVE_KEY, String(Date.now()));
+      setTimeout(loadSupportMessages, 80);
+      showToast('Сообщение отправлено в поддержку');
+    } catch (_) {
+      showToast('Не удалось отправить сообщение. Повтори — дубля не будет.', 5500);
+    } finally { if (submit) submit.disabled = false; }
+  });
 
   const guide = $('guideDialog');
   $('openGuideBtn').addEventListener('click', () => guide.showModal()); $('dashboardGuideBtn')?.addEventListener('click', () => guide.showModal()); $('closeGuideBtn').addEventListener('click', () => guide.close()); $('guideSupportBtn').addEventListener('click', () => { guide.close(); openSupport(); }); $('supportConnectBtn')?.addEventListener('click', openSupport);
   $('menuButton').addEventListener('click', () => document.querySelector('.nav-links').classList.toggle('open'));
   document.querySelectorAll('.nav-links a').forEach((a) => a.addEventListener('click', () => document.querySelector('.nav-links').classList.remove('open')));
 
-  checkWorkerStatus();
-  if (state.session) loadDashboard(); else showLoggedOut();
+  if (state.session) {
+    loadDashboard();
+  } else {
+    showLoggedOut();
+    setTimeout(checkWorkerStatus, 250);
+  }
 })();
